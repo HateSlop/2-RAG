@@ -3,6 +3,7 @@ from openai import OpenAI # OpenAI의 api 사용 가능
 import chromadb # chromadb 라이브러리 쓸 수 있게 해줌
 from chromadb.config import Settings # Settings 클래스는 DB의 구성 옵션을 설정하는데 사용
 from dotenv import load_dotenv # 환경 변수를 로드하기 위함
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # 환경 변수 Load해서 api_key 가져오고 OpenAI 클라이언트(객체) 초기화
 load_dotenv() 
@@ -33,22 +34,10 @@ def get_embedding(text, model="text-embedding-3-large"):
     embedding = response.data[0].embedding # 응답 객체의 data 리스트에서 embedding 필드 추출
     return embedding 
 # 원천 데이터 청크 단위로 나누고 overlap 사이즈 조절하는 함수
-def chunk_text(text, chunk_size=400, chunk_overlap=50):
-    chunks = [] # 분할된 텍스트 청크들을 저장할 리스트
-    start = 0 # 청크를 시작할 위치를 나타내는 인덱스
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end] # 텍스트에서 start부터 end까지 부분 문자열을 추출
-        chunks.append(chunk) # 추출한 청크를 리스트에 추가
-        start = end - chunk_overlap # overlap 적용
-
-        if start < 0: # 음수가 될 수 있으니 예외 처리
-            start = 0
-
-        if start >= len(text): # 종료 시그널
-            break
-
-    return chunks # 모든 청크가 저장된 리스트를 반환
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=400,
+    chunk_overlap=50
+)
 # 문서로드 -> 청크 나누고 -> 임베딩 생성 후 DB 삽입
 if __name__ == "__main__":
     # db 초기화
@@ -59,7 +48,7 @@ if __name__ == "__main__":
 
     doc_id = 0
     for filename, text in docs: 
-        chunks = chunk_text(text, chunk_size=400, chunk_overlap=50) # chunking
+        chunks = text_splitter.split_text(text)# chunking
         for idx, chunk in enumerate(chunks): # 각 청크와 해당 청크의 인덱스 가져옴
             doc_id += 1 # 인덱스 하나씩 증가 시키면서
             embedding = get_embedding(chunk) # 각 청크 임베딩 벡터 생성
