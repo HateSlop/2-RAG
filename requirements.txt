@@ -10,6 +10,7 @@ pandas
 datasets
 chromadb
 langchain
+langchain_openai
 tiktoken
 python-dotenv
 unstructured 
