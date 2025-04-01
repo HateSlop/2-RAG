@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-from build_vector_db import get_embedding
+from build_vector_db import embedder
 from chromadb import Client
 import chromadb 
 from chromadb.config import Settings 
@@ -11,7 +11,15 @@ collection = dbclient.get_or_create_collection("rag_collection")
 
 # query를 임베딩해 chroma에서 가장 유사도가 높은 top-k개의 문서 가져오는 함수 
 def retrieve(query, top_k=3):
-    # do it
+    query_embedding = embedder.embed_query(query) # qeury에 대한 임베딩 생성
+    # collection.query 함수로 저장된 문서 임베딩들 중에서
+    # query임베딩과 가장 유사한 항목들 검색 
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=top_k
+    ) 
+    # 이때 results에는 해당 query 임베딩에 대한 텍스트, 메타데이터, id등이 전부 포함됨 
+    return results
 
 
 # 1) query에 대해 벡터 DB에서 top_k개 문서 retrieval
@@ -21,10 +29,17 @@ def retrieve(query, top_k=3):
 def generate_answer_with_context(query, top_k=3):
     # retrieve 함수로 결과 얻고 
     # top_k에 대한 documents와 metadatas 리스트로 추출
-    # do it
+    results = retrieve(query, top_k)
+    found_docs = results["documents"][0]
+    found_metadatas = results["metadatas"][0]
 
     # context 구성
-    # do it
+    context_texts = []
+    # zip을 이용해 두 리스트의 같은 인덱스에 있는 값들을 한 쌍으로 묶음
+    for doc_text, meta in zip(found_docs, found_metadatas): 
+        context_texts.append(f"<<filename: {meta['filename']}>>\n{doc_text}")
+    # context_texts 리스트에 있는 모든 문자열이 \n\n으로 이어 붙여짐
+    context_str = "\n\n".join(context_texts)
 
     # 프롬프트 작성
     system_prompt = """
@@ -53,7 +68,7 @@ def generate_answer_with_context(query, top_k=3):
     client = OpenAI(api_key=api_key)
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages = [{"role":"system", "content": system_prompt},
         {"role":"user", "content": user_prompt}]
     )
